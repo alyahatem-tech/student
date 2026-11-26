@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in – StudyDesk</title>
+  <link rel="stylesheet" href="style.css">
+  <script>document.documentElement.dataset.theme = localStorage.getItem('studydesk.theme') || 'light';</script>
+</head>
+<body>
+  <div class="auth">
+    <section class="auth-hero">
+      <div class="brand"><span class="logo">✓</span><span>StudyDesk</span></div>
+      <h1>Plan your school week without the stress.</h1>
+      <ul>
+        <li>📚 Keep every assignment and exam in one place</li>
+        <li>⏰ Get reminders before deadlines</li>
+        <li>🎯 Stay focused with the built-in timer</li>
+      </ul>
+    </section>
+
+    <section class="auth-panel">
+      <form class="card auth-card" id="authForm" novalidate>
+        <div class="tabs">
+          <button type="button" class="tab active" data-mode="login">Log in</button>
+          <button type="button" class="tab" data-mode="signup">Sign up</button>
+        </div>
+        <h2 id="authTitle">Welcome back</h2>
+        <label id="nameRow" class="hidden">Your name<input id="fullName" maxlength="30" autocomplete="name" placeholder="e.g. Ali"></label>
+        <label>Username<input id="username" autocomplete="username" autocapitalize="none" placeholder="e.g. ali_2026"></label>
+        <label>Password
+          <span class="pw"><input id="password" type="password" autocomplete="current-password" placeholder="At least 6 characters"><button type="button" class="icon-btn" id="showPw" aria-label="Show password">👁️</button></span>
+        </label>
+        <label class="remember"><input type="checkbox" id="remember" checked> Keep me logged in</label>
+        <p class="error" id="authErr" role="alert"></p>
+        <button class="btn primary" id="authSubmit" type="submit">Log in</button>
+        <p class="auth-note">Accounts are saved only in this browser on this device.</p>
+      </form>
+    </section>
+  </div>
+  <script src="auth.js"></script>
+</body>
+</html>

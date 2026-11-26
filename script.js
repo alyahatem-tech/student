@@ -1,5 +1,8 @@
 /* StudyDesk – Student Task Manager (vanilla JS, no backend) */
-const STORE_KEY = 'studydesk.tasks', THEME_KEY = 'studydesk.theme';
+const THEME_KEY = 'studydesk.theme';
+const user = getSessionUser();              // from auth.js (null when logged out)
+if (!user) location.replace('login.html');  // protect the page
+const STORE_KEY = 'studydesk.tasks.' + (user ? user.username : 'guest'); // every user has their own tasks
 const QUOTES = [
   'Small steps every day add up to big results.',
   'Start now. Perfect can come later.',
@@ -18,7 +21,16 @@ const $ = id => document.getElementById(id);
 
 // ---------- Storage ----------
 function load() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; } catch { return []; }
+  try {
+    let raw = localStorage.getItem(STORE_KEY);
+    // One-time move of tasks saved before accounts existed
+    if (raw === null && localStorage.getItem('studydesk.tasks')) {
+      raw = localStorage.getItem('studydesk.tasks');
+      localStorage.setItem(STORE_KEY, raw);
+      localStorage.removeItem('studydesk.tasks');
+    }
+    return JSON.parse(raw) || [];
+  } catch { return []; }
 }
 /** Save tasks and refresh the whole UI so the dashboard is always in sync. */
 function save() {
@@ -206,14 +218,17 @@ function checkDeadlines() {
 // ---------- Theme ----------
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  $('themeBtn').textContent = theme === 'dark' ? '☀️ Light mode' : '🌙 Dark mode';
+  document.querySelectorAll('.theme-toggle').forEach(b => {
+    const icon = theme === 'dark' ? '☀️' : '🌙';
+    b.textContent = b.classList.contains('icon-btn') ? icon : `${icon} ${theme === 'dark' ? 'Light' : 'Dark'} mode`;
+  });
   localStorage.setItem(THEME_KEY, theme);
 }
 
 // ---------- Init & events ----------
 function init() {
   const h = new Date().getHours();
-  $('welcome').textContent = `${h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'}, student! 👋`;
+  $('welcome').textContent = `${h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'}, ${user.name}! 👋`;
   $('today').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
   $('quote').textContent = QUOTES[new Date().getDate() % QUOTES.length];
   applyTheme(localStorage.getItem(THEME_KEY) ||
@@ -222,7 +237,9 @@ function init() {
   document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
   $('navAdd').addEventListener('click', () => openModal());
   document.querySelectorAll('[data-open-add]').forEach(b => b.addEventListener('click', () => openModal()));
-  $('themeBtn').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+  document.querySelectorAll('.theme-toggle').forEach(b => b.addEventListener('click',
+    () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark')));
+  document.querySelectorAll('.logout-btn').forEach(b => b.addEventListener('click', logout));
 
   $('taskForm').addEventListener('submit', submitForm);
   $('cancelBtn').addEventListener('click', closeModal);
@@ -252,5 +269,80 @@ function init() {
 
   render();
   checkDeadlines();
+  initExtras();
 }
-init();
+
+// ---------- Extra features: focus timer, backup, clear completed ----------
+let pomo = { mins: 25, left: 25 * 60, end: 0, timer: null };
+
+function pomoDraw() {
+  const m = String(Math.floor(pomo.left / 60)).padStart(2, '0'), s = String(pomo.left % 60).padStart(2, '0');
+  $('pomoTime').textContent = `${m}:${s}`;
+}
+function pomoStop() {
+  clearInterval(pomo.timer); pomo.timer = null;
+  $('pomoStart').textContent = 'Start';
+  document.title = 'StudyDesk – Student Task Manager';
+}
+/** Start / pause. Uses an end timestamp so it stays accurate in background tabs. */
+function pomoToggle() {
+  if (pomo.timer) { pomoStop(); return; }
+  pomo.end = Date.now() + pomo.left * 1000;
+  $('pomoStart').textContent = 'Pause';
+  pomo.timer = setInterval(() => {
+    pomo.left = Math.max(0, Math.round((pomo.end - Date.now()) / 1000));
+    pomoDraw(); document.title = `${$('pomoTime').textContent} · StudyDesk`;
+    if (pomo.left === 0) {
+      pomoStop(); pomo.left = pomo.mins * 60; pomoDraw();
+      toast(pomo.mins === 25 ? '🎉 Focus session done! Take a break.' : '⏰ Break over. Back to work!');
+    }
+  }, 500);
+}
+function pomoSet(mins) { pomoStop(); pomo.mins = mins; pomo.left = mins * 60; pomoDraw(); }
+
+function exportTasks() {
+  const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `studydesk-backup-${todayStr()}.json`; a.click();
+  URL.revokeObjectURL(a.href); toast('Backup downloaded');
+}
+/** Reads a backup file, validates every task, then replaces the current list. */
+function importTasks(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!Array.isArray(data)) throw new Error('not a list');
+      const valid = data.filter(t => t && typeof t.title === 'string' && t.title.trim()).map(t => ({
+        id: t.id || Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        title: t.title.trim().slice(0, 80), desc: String(t.desc || ''), subject: String(t.subject || 'Other'),
+        priority: t.priority in PRIORITY_RANK ? t.priority : 'medium',
+        due: /^\d{4}-\d{2}-\d{2}$/.test(t.due) ? t.due : '', done: !!t.done, created: Number(t.created) || Date.now()
+      }));
+      if (!valid.length) throw new Error('empty');
+      if (!confirm(`Replace your current tasks with ${valid.length} task(s) from this file?`)) return;
+      tasks = valid; save(); toast('Backup restored');
+    } catch { toast('❌ This is not a valid StudyDesk backup file.'); }
+  };
+  reader.readAsText(file);
+}
+function clearCompleted() {
+  const n = tasks.filter(t => t.done).length;
+  if (!n) { toast('No completed tasks to clear.'); return; }
+  if (!confirm(`Delete ${n} completed task${n > 1 ? 's' : ''}?`)) return;
+  tasks = tasks.filter(t => !t.done); save(); toast('Completed tasks cleared');
+}
+function initExtras() {
+  $('pomoStart').addEventListener('click', pomoToggle);
+  $('pomoReset').addEventListener('click', () => pomoSet(pomo.mins));
+  document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(x => x.classList.toggle('active', x === b));
+    pomoSet(Number(b.dataset.mins));
+  }));
+  $('exportBtn').addEventListener('click', exportTasks);
+  $('importBtn').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', e => { if (e.target.files[0]) importTasks(e.target.files[0]); e.target.value = ''; });
+  $('clearDone').addEventListener('click', clearCompleted);
+}
+
+if (user) init();

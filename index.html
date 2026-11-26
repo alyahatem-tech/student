@@ -7,6 +7,14 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Mobile top bar (hidden on desktop) -->
+  <header class="topbar">
+    <div class="brand"><span class="logo">✓</span><span>StudyDesk</span></div>
+    <div class="top-actions">
+      <button class="icon-btn theme-toggle" aria-label="Toggle dark mode">🌙</button>
+      <button class="icon-btn logout-btn" aria-label="Log out">🚪</button>
+    </div>
+  </header>
   <div class="app">
     <!-- Sidebar navigation -->
     <aside class="sidebar">
@@ -18,7 +26,8 @@
       </nav>
       <div class="side-foot">
         <p class="quote" id="quote"></p>
-        <button class="theme-btn" id="themeBtn">🌙 Dark mode</button>
+        <button class="theme-btn theme-toggle">🌙 Dark mode</button>
+        <button class="theme-btn logout-btn">🚪 Log out</button>
       </div>
     </aside>
 
@@ -44,6 +53,14 @@
           <div class="row"><h2>Your progress</h2><b id="pct">0%</b></div>
           <div class="bar"><div class="bar-fill" id="barFill"></div></div>
           <p class="sub" id="progressMsg"></p>
+        </div>
+
+        <div class="card pomo">
+          <div class="row"><h2>Focus timer</h2>
+            <div class="modes"><button class="mode-btn active" data-mins="25">Focus 25</button><button class="mode-btn" data-mins="5">Break 5</button></div>
+          </div>
+          <div class="pomo-time" id="pomoTime">25:00</div>
+          <div class="actions center"><button class="btn primary" id="pomoStart">Start</button><button class="btn ghost" id="pomoReset">Reset</button></div>
         </div>
 
         <div class="card">
@@ -74,6 +91,13 @@
           <button class="chip" data-filter="pending">Pending</button>
           <button class="chip" data-filter="completed">Completed</button>
           <button class="chip" data-filter="overdue">Overdue</button>
+        </div>
+
+        <div class="tools">
+          <button class="btn ghost" id="exportBtn">⬇️ Export backup</button>
+          <button class="btn ghost" id="importBtn">⬆️ Import backup</button>
+          <button class="btn ghost" id="clearDone">🧹 Clear completed</button>
+          <input type="file" id="importFile" accept="application/json" hidden>
         </div>
 
         <div id="taskList" class="task-list"></div>
@@ -120,6 +144,7 @@
   </div>
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
+  <script src="auth.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
